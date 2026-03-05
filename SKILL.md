@@ -68,11 +68,11 @@ The CLI automatically checks ERC20 token allowance and approves if needed before
 
 ### FOMO Token Trading
 
-The FOMO token is launched on the FLAP platform (BNB Chain bonding curve). Trading uses the FlapSkill contract (`0x03a9aeeb4f6e64d425126164f7262c2a754b3ff9`) which auto-routes:
-- **内盘 (Portal)**: When the token is still on the bonding curve
-- **外盘 (PancakeSwap V2/V3)**: After the token graduates to DEX
+The FOMO token is launched on the FLAP platform (BNB Chain bonding curve). Trading uses **BNB** as the quote token:
+- **内盘 (Portal)**: Directly calls FLAP Portal's `swapExactInput` with native BNB
+- **外盘 (PancakeSwap V2)**: After the token graduates to DEX, uses PancakeSwap V2 Router
 
-All trading uses **USDT** as the quote token. Buy/sell commands are only available on **mainnet**.
+The CLI auto-detects the current phase via `getTokenV6` and routes accordingly. Buy/sell commands work on both **testnet** and **mainnet**.
 
 ### VRF (Verifiable Random Function)
 
@@ -163,21 +163,21 @@ End a round whose countdown has reached zero. Anyone can call this. The grand pr
 
 **Output fields:** `txHash`, `blockNumber`, `status`
 
-### Buy — Buy FOMO with USDT (mainnet only)
+### Buy — Buy FOMO with BNB
 
 ```bash
-fomo3d buy --amount <usdt_amount_in_wei> --json
+fomo3d buy --amount <bnb_amount_in_wei> --json
 ```
-Buy FOMO tokens using USDT via the FLAP platform. The FlapSkill contract auto-routes to Portal (内盘) or PancakeSwap (外盘) depending on token status. USDT allowance is auto-approved.
+Buy FOMO tokens using BNB via the FLAP platform. Auto-detects market phase: Portal (内盘) or PancakeSwap V2 (外盘).
 
-**Example:** Buy with 10 USDT:
+**Example:** Buy with 0.01 BNB:
 ```bash
-fomo3d buy --amount 10000000000000000000 --json
+fomo3d buy --amount 10000000000000000 --json
 ```
 
-**Output fields:** `txHash`, `blockNumber`, `status`, `usdtSpent` (wei), `token`
+**Output fields:** `txHash`, `blockNumber`, `status`, `bnbSpent` (wei), `token`, `market`
 
-### Sell — Sell FOMO for USDT (mainnet only)
+### Sell — Sell FOMO for BNB
 
 ```bash
 # 按数量卖出
@@ -186,30 +186,28 @@ fomo3d sell --amount <token_amount_in_wei> --json
 # 按持仓比例卖出
 fomo3d sell --percent <bps> --json
 ```
-Sell FOMO tokens for USDT. Two modes:
+Sell FOMO tokens for BNB. Two modes:
 - `--amount`: Sell exact token amount (in wei, 18 decimals)
 - `--percent`: Sell by percentage of holdings in basis points (10000=100%, 5000=50%, 1000=10%)
 
-Cannot use both flags simultaneously. Token allowance is auto-approved.
+Cannot use both flags simultaneously. Token allowance is auto-approved for Portal/PancakeSwap.
 
 **Example:** Sell 50% of holdings:
 ```bash
 fomo3d sell --percent 5000 --json
 ```
 
-**Output fields (--amount):** `txHash`, `blockNumber`, `status`, `tokensSold` (wei), `method`
-**Output fields (--percent):** `txHash`, `blockNumber`, `status`, `percentBps`, `method`
+**Output fields:** `txHash`, `blockNumber`, `status`, `tokensSold` (wei), `market`, `method`
 
 ### Token Info — Token Status & Balances
 
 ```bash
 fomo3d token-info --json
+fomo3d token-info --address 0x1234... --json
 ```
-Query FOMO token status on the FLAP platform and your balances.
+Query FOMO token status on the FLAP platform and balances. Works without private key (shows token status only). Supports `--address` flag to check another wallet.
 
-**Output fields (mainnet):** `token`, `network`, `status` (NotCreated/Tradable/DEX/Locked), `phase` (内盘/外盘), `quoteToken`, `currentPrice` (wei), `totalSupply` (wei), `reserveBalance` (wei), `progress` (wei), `fomoBalance` (wei), `usdtBalance` (wei), `account`
-
-**Output fields (testnet):** `token`, `network`, `status`, `phase`, `fomoBalance` (wei), `account`
+**Output fields:** `token`, `network`, `portal`, `status` (Invalid/Tradable/InDuel/Killed/DEX/Staged), `phase` (内盘/外盘), `quoteToken`, `price` (wei), `reserve` (wei), `circulatingSupply` (wei), `taxRate`, `progress` (wei), `fomoBalance` (wei), `bnbBalance` (wei), `account`
 
 **Decision guide:**
 - `status == Tradable`: Token is on 内盘 (bonding curve), buy/sell via Portal
@@ -286,13 +284,13 @@ Claim accumulated dividends from slot machine deposits.
 2. `fomo3d wallet --json` — verify BNB and token balances
 3. `fomo3d status --json` — check game state
 
-### Buying FOMO Tokens (mainnet)
+### Buying FOMO Tokens
 
-1. `fomo3d token-info --json` — check token status and your USDT balance
-2. `fomo3d buy --amount 10000000000000000000 --json` — buy with 10 USDT
+1. `fomo3d token-info --json` — check token status and your BNB balance
+2. `fomo3d buy --amount 10000000000000000 --json` — buy with 0.01 BNB
 3. `fomo3d token-info --json` — verify FOMO balance
 
-### Selling FOMO Tokens (mainnet)
+### Selling FOMO Tokens
 
 1. `fomo3d token-info --json` — check FOMO balance
 2. `fomo3d sell --percent 5000 --json` — sell 50% of holdings
@@ -329,15 +327,15 @@ Claim accumulated dividends from slot machine deposits.
 
 ## Network Info
 
-| Network | Chain ID | Fomo3D Diamond | Slot Diamond | FOMO Token |
-|---------|----------|----------------|--------------|------------|
-| BSC Testnet | 97 | `0x22E309c31Bed932afB505308434fB774cB2B23a6` | `0x007813509FA42B830db82C773f0Dd243fBEbF678` | `0x57e3a4fd1fe7f837535ea3b86026916f8c7d5d46` |
+| Network | Chain ID | Fomo3D Diamond | Slot Diamond | FOMO Token (FLAP) |
+|---------|----------|----------------|--------------|-------------------|
+| BSC Testnet | 97 | `0x22E309c31Bed932afB505308434fB774cB2B23a6` | `0x007813509FA42B830db82C773f0Dd243fBEbF678` | `0x32bfe55027979e77ad84f37b935e65ce87188888` |
 | BSC Mainnet | 56 | `0x062AfaBEA853178E58a038b808EDEA119fF5948b` | `0x6eB59fFEc7CC639DFF4238D09B99Ea4c9150156E` | `0x13f26659398d7280737ffc9aba3d4f3cf53b7777` |
 
-## Trading Contracts (mainnet only)
+## Trading Contracts
 
-| Contract | Address | Purpose |
-|----------|---------|---------|
-| FlapSkill | `0x03a9aeeb4f6e64d425126164f7262c2a754b3ff9` | 买卖代币（自动路由内盘/外盘） |
-| USDT (BSC) | `0x55d398326f99059fF775485246999027B3197955` | 支付媒介 |
-| FLAP Portal | `0xe2cE6ab80874Fa9Fa2aAE65D277Dd6B8e65C9De0` | 查询代币状态 |
+| Contract | Testnet | Mainnet | Purpose |
+|----------|---------|---------|---------|
+| FLAP Portal | `0x5bEacaF7ABCbB3aB280e80D007FD31fcE26510e9` | `0xe2cE6ab80874Fa9Fa2aAE65D277Dd6B8e65C9De0` | 内盘交易 + 状态查询 |
+| PancakeSwap V2 Router | — | `0x10ED43C718714eb63d5aA57B78B54704E256024E` | 外盘交易 |
+| Quote Token | BNB (native) | BNB (native) | 支付媒介 |

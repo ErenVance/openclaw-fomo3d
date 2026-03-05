@@ -1,58 +1,113 @@
 import { readConfig, requirePrivateKey, ADDRESSES } from "../lib/config.js"
 import { getPublicClient, getWalletClient } from "../lib/client.js"
-import { ensureAllowance, getTokenBalance } from "../lib/erc20.js"
 import { output, log, fatal } from "../lib/output.js"
 import { getFlagValue } from "../lib/args.js"
-import { FLAP_SKILL_ADDRESS, FLAP_SKILL_ABI, USDT_ADDRESS } from "../lib/flap.js"
-import { requireMainnet, parseBigInt } from "../lib/utils.js"
+import {
+  PORTAL_ADDRESSES, PORTAL_ABI, NATIVE_BNB,
+  PANCAKE_ROUTER, PANCAKE_ROUTER_ABI, WBNB_ADDRESS,
+  TOKEN_STATUS, type TokenStatusCode,
+} from "../lib/flap.js"
+import { parseBigInt } from "../lib/utils.js"
 
 export async function buy(args: string[]) {
   const amountStr = getFlagValue(args, "--amount")
-  if (!amountStr) fatal("Missing --amount <usdt_wei>. Usage: fomo3d buy --amount 10000000000000000000")
+  if (!amountStr) fatal("Missing --amount <bnb_wei>. Usage: fomo3d buy --amount 10000000000000000 (0.01 BNB)")
 
-  const usdtAmount = parseBigInt(amountStr, "amount")
-  if (usdtAmount <= 0n) fatal("Amount must be positive")
+  const bnbAmount = parseBigInt(amountStr, "amount")
+  if (bnbAmount <= 0n) fatal("Amount must be positive")
 
   const config = readConfig()
-  requireMainnet(config)
-
   const pk = requirePrivateKey(config)
   const publicClient = getPublicClient(config.network, config.rpcUrl)
   const walletClient = getWalletClient(pk, config.network, config.rpcUrl)
   const fomoToken = ADDRESSES[config.network].fomoToken
+  const portal = PORTAL_ADDRESSES[config.network]
+  const account = walletClient.account!.address
 
-  // 检查 USDT 余额
-  const usdtBalance = await getTokenBalance(publicClient, USDT_ADDRESS, walletClient.account!.address)
-  if (usdtBalance < usdtAmount) {
-    fatal(`Insufficient USDT balance: have ${usdtBalance}, need ${usdtAmount}`)
+  // 检查 BNB 余额
+  const bnbBalance = await publicClient.getBalance({ address: account })
+  if (bnbBalance < bnbAmount) {
+    fatal(`Insufficient BNB balance: have ${bnbBalance}, need ${bnbAmount}`)
   }
 
-  // 授权 USDT 给 FlapSkill
-  await ensureAllowance(publicClient, walletClient, USDT_ADDRESS, FLAP_SKILL_ADDRESS, usdtAmount)
-
-  // 买入
-  log(`Buying FOMO with ${usdtAmount} USDT (wei)...`)
-  const hash = await walletClient.writeContract({
-    address: FLAP_SKILL_ADDRESS,
-    abi: FLAP_SKILL_ABI,
-    functionName: "buyTokens",
-    args: [fomoToken, usdtAmount],
-    chain: walletClient.chain,
+  // 查代币状态
+  const tokenState = await publicClient.readContract({
+    address: portal,
+    abi: PORTAL_ABI,
+    functionName: "getTokenV6",
+    args: [fomoToken],
   })
 
-  log(`Transaction: ${hash}`)
-  const receipt = await publicClient.waitForTransactionReceipt({ hash })
+  const statusCode = Number(tokenState.status) as TokenStatusCode
+  const statusName = TOKEN_STATUS[statusCode] ?? "Unknown"
 
-  output({
-    txHash: hash,
-    blockNumber: Number(receipt.blockNumber),
-    status: receipt.status,
-    usdtSpent: usdtAmount.toString(),
-    token: fomoToken,
-  }, (d) => {
-    log(`\nBuy ${d.status === "success" ? "successful" : "failed"}!`)
-    log(`USDT spent: ${d.usdtSpent}`)
-    log(`Block: ${d.blockNumber}`)
-    log("")
-  })
+  if (statusCode === 1) {
+    // 内盘（Tradable）— 直接调用 Portal.swapExactInput 用 BNB
+    log(`Buying FOMO on 内盘 (Portal) with ${bnbAmount} BNB (wei)...`)
+    const hash = await walletClient.writeContract({
+      address: portal,
+      abi: PORTAL_ABI,
+      functionName: "swapExactInput",
+      args: [{
+        inputToken: NATIVE_BNB,
+        outputToken: fomoToken,
+        inputAmount: bnbAmount,
+        minOutputAmount: 0n,
+        permitData: "0x",
+      }],
+      value: bnbAmount,
+      chain: walletClient.chain,
+    })
+
+    log(`Transaction: ${hash}`)
+    const receipt = await publicClient.waitForTransactionReceipt({ hash })
+
+    output({
+      txHash: hash,
+      blockNumber: Number(receipt.blockNumber),
+      status: receipt.status,
+      bnbSpent: bnbAmount.toString(),
+      token: fomoToken,
+      market: "内盘 (Portal)",
+    }, (d) => {
+      log(`\nBuy ${d.status === "success" ? "successful" : "failed"}!`)
+      log(`BNB spent: ${d.bnbSpent}`)
+      log(`Market: ${d.market}`)
+      log(`Block: ${d.blockNumber}`)
+      log("")
+    })
+  } else if (statusCode === 4) {
+    // 外盘（DEX）— PancakeSwap V2 Router (swapExactETHForTokens)
+    log(`Buying FOMO on 外盘 (PancakeSwap) with ${bnbAmount} BNB (wei)...`)
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 300) // 5 分钟
+
+    const hash = await walletClient.writeContract({
+      address: PANCAKE_ROUTER,
+      abi: PANCAKE_ROUTER_ABI,
+      functionName: "swapExactETHForTokensSupportingFeeOnTransferTokens",
+      args: [0n, [WBNB_ADDRESS, fomoToken], account, deadline],
+      value: bnbAmount,
+      chain: walletClient.chain,
+    })
+
+    log(`Transaction: ${hash}`)
+    const receipt = await publicClient.waitForTransactionReceipt({ hash })
+
+    output({
+      txHash: hash,
+      blockNumber: Number(receipt.blockNumber),
+      status: receipt.status,
+      bnbSpent: bnbAmount.toString(),
+      token: fomoToken,
+      market: "外盘 (PancakeSwap)",
+    }, (d) => {
+      log(`\nBuy ${d.status === "success" ? "successful" : "failed"}!`)
+      log(`BNB spent: ${d.bnbSpent}`)
+      log(`Market: ${d.market}`)
+      log(`Block: ${d.blockNumber}`)
+      log("")
+    })
+  } else {
+    fatal(`Token is not tradable. Status: ${statusName} (${statusCode})`)
+  }
 }

@@ -137,9 +137,9 @@ GAME ACTIONS:
   settle                        Settle after round ends + claim prize
   end-round                     End expired round
 
-TOKEN TRADING (mainnet only):
-  buy --amount <usdt_wei>       Buy FOMO with USDT via FLAP
-  sell --amount <token_wei>     Sell FOMO tokens for USDT
+TOKEN TRADING (FLAP):
+  buy --amount <bnb_wei>        Buy FOMO with BNB
+  sell --amount <token_wei>     Sell FOMO tokens for BNB
   sell --percent <bps>          Sell by % (10000=100%, 5000=50%)
   token-info                    Token status, price, balances
 

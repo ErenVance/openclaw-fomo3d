@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "skills": {
+    "boiling-point": {
+      "version": "1.0.9",
+      "installedAt": 1772709178401
+    },
+    "okx-dex": {
+      "version": "1.0.0",
+      "installedAt": 1772709181525
+    },
+    "four-claw": {
+      "version": "1.0.0",
+      "installedAt": 1772709299263
+    },
+    "pancake-swap-skills": {
+      "version": "1.0.0",
+      "installedAt": 1772709302231
+    }
+  }
+}
