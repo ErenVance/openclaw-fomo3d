@@ -9,12 +9,6 @@ export const USDT_ADDRESS = "0x55d398326f99059fF775485246999027B3197955" as Addr
 // FLAP Portal — 查询代币状态
 export const PORTAL_ADDRESS = "0xe2cE6ab80874Fa9Fa2aAE65D277Dd6B8e65C9De0" as Address
 
-// FOMO 代币地址
-export const FOMO_TOKEN = {
-  mainnet: "0x13f26659398d7280737ffc9aba3d4f3cf53b7777" as Address,
-  testnet: "0x57e3a4fd1fe7f837535ea3b86026916f8c7d5d46" as Address,
-} as const
-
 // FlapSkill ABI — buyTokens / sellTokens / sellTokensByPercent
 export const FLAP_SKILL_ABI = [
   {

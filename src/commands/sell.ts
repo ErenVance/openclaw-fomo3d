@@ -4,6 +4,7 @@ import { ensureAllowance, getTokenBalance } from "../lib/erc20.js"
 import { output, log, fatal } from "../lib/output.js"
 import { getFlagValue } from "../lib/args.js"
 import { FLAP_SKILL_ADDRESS, FLAP_SKILL_ABI } from "../lib/flap.js"
+import { requireMainnet, parseBigInt } from "../lib/utils.js"
 
 export async function sell(args: string[]) {
   const amountStr = getFlagValue(args, "--amount")
@@ -17,10 +18,7 @@ export async function sell(args: string[]) {
   }
 
   const config = readConfig()
-
-  if (config.network !== "mainnet") {
-    fatal("Sell is only available on mainnet.")
-  }
+  requireMainnet(config)
 
   const pk = requirePrivateKey(config)
   const publicClient = getPublicClient(config.network, config.rpcUrl)
@@ -30,8 +28,14 @@ export async function sell(args: string[]) {
 
   if (amountStr) {
     // 按数量卖出
-    const tokenAmount = BigInt(amountStr)
+    const tokenAmount = parseBigInt(amountStr, "amount")
     if (tokenAmount <= 0n) fatal("Amount must be positive")
+
+    // 检查余额
+    const balance = await getTokenBalance(publicClient, fomoToken, account)
+    if (balance < tokenAmount) {
+      fatal(`Insufficient FOMO balance: have ${balance}, need ${tokenAmount}`)
+    }
 
     await ensureAllowance(publicClient, walletClient, fomoToken, FLAP_SKILL_ADDRESS, tokenAmount)
 
@@ -61,7 +65,7 @@ export async function sell(args: string[]) {
     })
   } else {
     // 按比例卖出
-    const percentBps = BigInt(percentStr!)
+    const percentBps = parseBigInt(percentStr!, "percent")
     if (percentBps <= 0n || percentBps > 10000n) fatal("Percent must be 1-10000 (bps, 10000=100%)")
 
     // 授权全部余额
