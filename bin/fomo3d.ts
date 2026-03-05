@@ -67,6 +67,10 @@ async function main() {
       const { endRound } = await import("../src/commands/end-round.js")
       return endRound(rest)
     }
+    case "faucet": {
+      const { faucet } = await import("../src/commands/faucet.js")
+      return faucet(rest)
+    }
     case "buy": {
       const { buy } = await import("../src/commands/buy.js")
       return buy(rest)
@@ -130,6 +134,9 @@ INFO:
   wallet                        Show BNB + token balances
   status                        Game round status, countdown, pools
   player [--address 0x...]      Player shares, earnings, pending
+
+TESTNET:
+  faucet                        Claim 10000 test FOMO tokens
 
 GAME ACTIONS:
   purchase --shares <n>         Buy shares (auto-approves token)

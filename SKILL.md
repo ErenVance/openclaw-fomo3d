@@ -163,6 +163,15 @@ End a round whose countdown has reached zero. Anyone can call this. The grand pr
 
 **Output fields:** `txHash`, `blockNumber`, `status`
 
+### Faucet — Claim Test Tokens (testnet only)
+
+```bash
+fomo3d faucet --json
+```
+Claim 10000 test FOMO game tokens on BSC Testnet. Rate limited to 1 claim per address per hour.
+
+**Output fields:** `txHash`, `amount`, `token`, `account`
+
 ### Buy — Buy FOMO with BNB
 
 ```bash
@@ -284,6 +293,41 @@ Claim accumulated dividends from slot machine deposits.
 2. `fomo3d wallet --json` — verify BNB and token balances
 3. `fomo3d status --json` — check game state
 
+### Testing on Testnet
+
+Before using real funds on mainnet, test all features on BSC Testnet. You need:
+- **tBNB**: Get from [BNB Chain Faucet](https://www.bnbchain.org/en/testnet-faucet) (for gas + token trading)
+- **Test FOMO tokens**: Use the built-in faucet command (for game actions)
+
+```bash
+# 1. Setup with testnet
+fomo3d setup    # select "testnet", enter your private key
+
+# 2. Claim test game tokens (10000 FOMO per call, 1h cooldown)
+fomo3d faucet --json
+
+# 3. Check balances
+fomo3d wallet --json
+
+# 4. Test game: purchase → player → exit → settle
+fomo3d purchase --shares 1 --json
+fomo3d player --json
+fomo3d exit --json
+
+# 5. Test token trading (FLAP platform, uses BNB)
+fomo3d token-info --json
+fomo3d buy --amount 1000000000000000 --json    # 0.001 tBNB
+fomo3d sell --percent 5000 --json              # sell 50%
+
+# 6. Test slot machine
+fomo3d slot status --json
+fomo3d slot spin --bet 1000000000000000000 --json  # 1 FOMO
+```
+
+**Note:** Testnet has two separate FOMO tokens:
+- **Game token** (`0x57e3...5d46`): Used by `purchase`, `slot spin`, `slot deposit`. Get via `faucet`.
+- **FLAP token** (`0x32bf...8888`): Used by `buy`/`sell` on FLAP Portal. Buy with tBNB.
+
 ### Buying FOMO Tokens
 
 1. `fomo3d token-info --json` — check token status and your BNB balance
@@ -327,10 +371,10 @@ Claim accumulated dividends from slot machine deposits.
 
 ## Network Info
 
-| Network | Chain ID | Fomo3D Diamond | Slot Diamond | FOMO Token (FLAP) |
-|---------|----------|----------------|--------------|-------------------|
-| BSC Testnet | 97 | `0x22E309c31Bed932afB505308434fB774cB2B23a6` | `0x007813509FA42B830db82C773f0Dd243fBEbF678` | `0x32bfe55027979e77ad84f37b935e65ce87188888` |
-| BSC Mainnet | 56 | `0x062AfaBEA853178E58a038b808EDEA119fF5948b` | `0x6eB59fFEc7CC639DFF4238D09B99Ea4c9150156E` | `0x13f26659398d7280737ffc9aba3d4f3cf53b7777` |
+| Network | Chain ID | Fomo3D Diamond | Slot Diamond | Game Token | FLAP Token (buy/sell) |
+|---------|----------|----------------|--------------|------------|----------------------|
+| BSC Testnet | 97 | `0x22E309...23a6` | `0x007813...F678` | `0x57e3a4...5d46` | `0x32bfe5...8888` |
+| BSC Mainnet | 56 | `0x062AfaB...948b` | `0x6eB59f...156E` | `0x13f266...7777` | `0x13f266...7777` |
 
 ## Trading Contracts
 
