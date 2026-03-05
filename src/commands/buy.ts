@@ -1,11 +1,11 @@
-import { readConfig, requirePrivateKey, ADDRESSES } from "../lib/config.js"
+import { readConfig, requirePrivateKey, getFomoToken } from "../lib/config.js"
 import { getPublicClient, getWalletClient } from "../lib/client.js"
 import { output, log, fatal } from "../lib/output.js"
 import { getFlagValue } from "../lib/args.js"
 import {
   PORTAL_ADDRESSES, PORTAL_ABI, NATIVE_BNB,
-  PANCAKE_ROUTER, PANCAKE_ROUTER_ABI, WBNB_ADDRESS,
-  TOKEN_STATUS, type TokenStatusCode,
+  PANCAKE_ROUTER_ADDRESSES, PANCAKE_ROUTER_ABI, WBNB_ADDRESSES,
+  TOKEN_STATUS, queryTokenStatus,
 } from "../lib/flap.js"
 import { parseBigInt } from "../lib/utils.js"
 
@@ -20,7 +20,7 @@ export async function buy(args: string[]) {
   const pk = requirePrivateKey(config)
   const publicClient = getPublicClient(config.network, config.rpcUrl)
   const walletClient = getWalletClient(pk, config.network, config.rpcUrl)
-  const fomoToken = ADDRESSES[config.network].fomoToken
+  const fomoToken = getFomoToken(config)
   const portal = PORTAL_ADDRESSES[config.network]
   const account = walletClient.account!.address
 
@@ -30,15 +30,9 @@ export async function buy(args: string[]) {
     fatal(`Insufficient BNB balance: have ${bnbBalance}, need ${bnbAmount}`)
   }
 
-  // 查代币状态
-  const tokenState = await publicClient.readContract({
-    address: portal,
-    abi: PORTAL_ABI,
-    functionName: "getTokenV6",
-    args: [fomoToken],
-  })
-
-  const statusCode = Number(tokenState.status) as TokenStatusCode
+  // 查代币市场状态
+  const { statusCode, tokenState } = await queryTokenStatus(publicClient, portal, fomoToken)
+  if (!tokenState) log("Token not found on FLAP Portal, using PancakeSwap...")
   const statusName = TOKEN_STATUS[statusCode] ?? "Unknown"
 
   if (statusCode === 1) {
@@ -78,14 +72,16 @@ export async function buy(args: string[]) {
     })
   } else if (statusCode === 4) {
     // 外盘（DEX）— PancakeSwap V2 Router (swapExactETHForTokens)
+    const pancakeRouter = PANCAKE_ROUTER_ADDRESSES[config.network]
+    const wbnb = WBNB_ADDRESSES[config.network]
     log(`Buying FOMO on 外盘 (PancakeSwap) with ${bnbAmount} BNB (wei)...`)
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 300) // 5 分钟
 
     const hash = await walletClient.writeContract({
-      address: PANCAKE_ROUTER,
+      address: pancakeRouter,
       abi: PANCAKE_ROUTER_ABI,
       functionName: "swapExactETHForTokensSupportingFeeOnTransferTokens",
-      args: [0n, [WBNB_ADDRESS, fomoToken], account, deadline],
+      args: [0n, [wbnb, fomoToken], account, deadline],
       value: bnbAmount,
       chain: walletClient.chain,
     })

@@ -1,7 +1,8 @@
 import { readFileSync, writeFileSync, existsSync } from "fs"
 import { resolve, dirname } from "path"
 import { fileURLToPath } from "url"
-import type { Address } from "viem"
+import { isAddress, getAddress, type Address } from "viem"
+import { fatal } from "./output.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, "../..")
@@ -43,8 +44,7 @@ export function writeConfig(config: Partial<Config>): void {
 
 export function requirePrivateKey(config: Config): `0x${string}` {
   if (!config.privateKey) {
-    console.error("No private key configured. Run: fomo3d setup")
-    process.exit(1)
+    fatal("No private key configured. Run: fomo3d setup")
   }
   const key = config.privateKey.startsWith("0x") ? config.privateKey : `0x${config.privateKey}`
   return key as `0x${string}`
@@ -80,4 +80,16 @@ export function getDiamondAddress(config: Config): Address {
 
 export function getSlotDiamondAddress(config: Config): Address {
   return config.slotDiamond ?? ADDRESSES[config.network].slotDiamond
+}
+
+// FLAP 代币地址，支持 FOMO3D_FLAP_TOKEN 环境变量覆盖（用于测试不同市场阶段）
+export function getFomoToken(config: Config): Address {
+  const envToken = process.env.FOMO3D_FLAP_TOKEN
+  if (envToken) {
+    if (!isAddress(envToken)) {
+      fatal(`Invalid FOMO3D_FLAP_TOKEN: "${envToken}". Must be a valid Ethereum address.`)
+    }
+    return getAddress(envToken)
+  }
+  return ADDRESSES[config.network].fomoToken
 }

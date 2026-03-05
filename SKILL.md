@@ -1,6 +1,6 @@
 ---
 name: fomo3d
-description: Play Fomo3D and Slot Machine on BNB Chain (BSC). Fomo3D is a blockchain game where players buy shares using tokens — the last buyer before the countdown ends wins the grand prize. Includes a Slot Machine mini-game with VRF-powered random spins. This skill provides a CLI to check game status, purchase shares, claim dividends, spin the slot machine, and more.
+description: Play Fomo3D and Slot Machine on BNB Chain (BSC). Fomo3D is a blockchain game where players buy shares using tokens — the last buyer before the countdown ends wins the grand prize. Includes a Slot Machine mini-game with VRF-powered random spins. This skill provides a CLI to check game status, purchase shares, claim dividends, spin the slot machine, and more. Use this skill whenever the user wants to interact with Fomo3D, buy/sell FOMO tokens, check game status, spin the slot machine, trade on FLAP Portal or PancakeSwap, or manage their BNB Chain gaming wallet.
 version: 1.2.0
 metadata:
   openclaw:
@@ -35,6 +35,7 @@ Alternatively, set environment variables (no `setup` needed):
 - `FOMO3D_PRIVATE_KEY` — BSC wallet private key (hex, with or without 0x prefix)
 - `FOMO3D_NETWORK` — `testnet` or `mainnet` (default: testnet)
 - `FOMO3D_RPC_URL` — custom RPC endpoint (optional)
+- `FOMO3D_FLAP_TOKEN` — override FLAP token address for buy/sell commands (optional, for testing)
 
 **Important:** The wallet must be an EOA (externally owned account), not a smart contract wallet. The game contracts require `msg.sender == tx.origin`.
 
@@ -186,6 +187,8 @@ fomo3d buy --amount 10000000000000000 --json
 
 **Output fields:** `txHash`, `blockNumber`, `status`, `bnbSpent` (wei), `token`, `market`
 
+**Note:** Buy and sell commands use `minOutputAmount=0` (no slippage protection). For large trades, consider splitting into smaller amounts.
+
 ### Sell — Sell FOMO for BNB
 
 ```bash
@@ -314,12 +317,7 @@ fomo3d purchase --shares 1 --json
 fomo3d player --json
 fomo3d exit --json
 
-# 5. Test token trading (FLAP platform, uses BNB)
-fomo3d token-info --json
-fomo3d buy --amount 1000000000000000 --json    # 0.001 tBNB
-fomo3d sell --percent 5000 --json              # sell 50%
-
-# 6. Test slot machine
+# 5. Test slot machine
 fomo3d slot status --json
 fomo3d slot spin --bet 1000000000000000000 --json  # 1 FOMO
 ```
@@ -327,6 +325,44 @@ fomo3d slot spin --bet 1000000000000000000 --json  # 1 FOMO
 **Note:** Testnet has two separate FOMO tokens:
 - **Game token** (`0x57e3...5d46`): Used by `purchase`, `slot spin`, `slot deposit`. Get via `faucet`.
 - **FLAP token** (`0x32bf...8888`): Used by `buy`/`sell` on FLAP Portal. Buy with tBNB.
+
+### Testing Token Trading — 内盘 (Portal)
+
+The default FOMO token on testnet (`0x32bf...8888`) is in 内盘 (Portal bonding curve) phase. Test buy/sell with tBNB:
+
+```bash
+# Check token status — should show "phase": "内盘 (Portal)"
+fomo3d token-info --json
+
+# Buy with 0.001 tBNB
+fomo3d buy --amount 1000000000000000 --json
+
+# Sell 50% of holdings
+fomo3d sell --percent 5000 --json
+```
+
+### Testing Token Trading — 外盘 (PancakeSwap)
+
+To test the PancakeSwap DEX path, use `FOMO3D_FLAP_TOKEN` env var to override the token address with a PancakeSwap-listed testnet token:
+
+```bash
+# Use a testnet token with PancakeSwap V2 liquidity
+export FOMO3D_FLAP_TOKEN=0xFa60D973F7642B748046464e165A65B7323b0DEE
+
+# Check token info (should fallback to PancakeSwap)
+fomo3d token-info --json
+
+# Buy with 0.001 tBNB via PancakeSwap
+fomo3d buy --amount 1000000000000000 --json
+
+# Sell 100% via PancakeSwap
+fomo3d sell --percent 10000 --json
+
+# Unset to return to default FOMO token
+unset FOMO3D_FLAP_TOKEN
+```
+
+**How it works:** The CLI auto-detects the market phase via FLAP Portal `getTokenV6`. If the token is not on FLAP (query fails) or has status `DEX` (4), it routes to PancakeSwap V2 Router. If status is `Tradable` (1), it routes to Portal.
 
 ### Buying FOMO Tokens
 
@@ -381,5 +417,5 @@ fomo3d slot spin --bet 1000000000000000000 --json  # 1 FOMO
 | Contract | Testnet | Mainnet | Purpose |
 |----------|---------|---------|---------|
 | FLAP Portal | `0x5bEacaF7ABCbB3aB280e80D007FD31fcE26510e9` | `0xe2cE6ab80874Fa9Fa2aAE65D277Dd6B8e65C9De0` | 内盘交易 + 状态查询 |
-| PancakeSwap V2 Router | — | `0x10ED43C718714eb63d5aA57B78B54704E256024E` | 外盘交易 |
+| PancakeSwap V2 Router | `0xD99D1c33F9fC3444f8101754aBC46c52416550D1` | `0x10ED43C718714eb63d5aA57B78B54704E256024E` | 外盘交易 |
 | Quote Token | BNB (native) | BNB (native) | 支付媒介 |

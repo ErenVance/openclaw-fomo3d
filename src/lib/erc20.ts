@@ -30,6 +30,7 @@ export async function ensureAllowance(
     abi: ERC20_ABI,
     functionName: "approve",
     args: [spenderAddress, maxUint256],
+    account: walletClient.account!,
     chain: walletClient.chain,
   })
 

@@ -1,7 +1,9 @@
 #!/usr/bin/env npx tsx
 
 // 抑制 Promise.all 中未处理的 rejection（已由 main catch 处理）
-process.on("unhandledRejection", () => {})
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection:", reason)
+})
 
 import { setJsonMode, error } from "../src/lib/output.js"
 import { hasFlag, getFlagValue, removeFlags, removeFlagWithValue } from "../src/lib/args.js"
@@ -11,7 +13,11 @@ async function main() {
 
   // 全局 flags
   if (hasFlag(args, "--json")) setJsonMode(true)
-  if (hasFlag(args, "--version")) { console.log("0.1.0"); return }
+  if (hasFlag(args, "--version")) {
+    const pkg = await import("../package.json", { with: { type: "json" } })
+    console.log(pkg.default.version)
+    return
+  }
 
   // --network 覆盖
   const networkOverride = getFlagValue(args, "--network")

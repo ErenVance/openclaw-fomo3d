@@ -1,14 +1,29 @@
-import { readConfig, requirePrivateKey, ADDRESSES } from "../lib/config.js"
+import { readConfig, requirePrivateKey, getFomoToken } from "../lib/config.js"
 import { getPublicClient, getWalletClient } from "../lib/client.js"
 import { ensureAllowance, getTokenBalance } from "../lib/erc20.js"
 import { output, log, fatal } from "../lib/output.js"
 import { getFlagValue } from "../lib/args.js"
 import {
   PORTAL_ADDRESSES, PORTAL_ABI, NATIVE_BNB,
-  PANCAKE_ROUTER, PANCAKE_ROUTER_ABI, WBNB_ADDRESS,
-  TOKEN_STATUS, type TokenStatusCode,
+  PANCAKE_ROUTER_ADDRESSES, PANCAKE_ROUTER_ABI, WBNB_ADDRESSES,
+  TOKEN_STATUS, queryTokenStatus,
 } from "../lib/flap.js"
 import { parseBigInt } from "../lib/utils.js"
+
+function resolveTokenAmount(amountStr: string | undefined, percentStr: string | undefined, balance: bigint): bigint {
+  if (amountStr) {
+    const amount = parseBigInt(amountStr, "amount")
+    if (amount <= 0n) fatal("Amount must be positive")
+    if (balance < amount) fatal(`Insufficient FOMO balance: have ${balance}, need ${amount}`)
+    return amount
+  }
+  const percentBps = parseBigInt(percentStr!, "percent")
+  if (percentBps <= 0n || percentBps > 10000n) fatal("Percent must be 1-10000 (bps, 10000=100%)")
+  if (balance === 0n) fatal("No FOMO tokens to sell")
+  const amount = (balance * percentBps) / 10000n
+  if (amount === 0n) fatal("Calculated sell amount is 0")
+  return amount
+}
 
 export async function sell(args: string[]) {
   const amountStr = getFlagValue(args, "--amount")
@@ -25,35 +40,17 @@ export async function sell(args: string[]) {
   const pk = requirePrivateKey(config)
   const publicClient = getPublicClient(config.network, config.rpcUrl)
   const walletClient = getWalletClient(pk, config.network, config.rpcUrl)
-  const fomoToken = ADDRESSES[config.network].fomoToken
+  const fomoToken = getFomoToken(config)
   const portal = PORTAL_ADDRESSES[config.network]
   const account = walletClient.account!.address
 
   // 计算卖出数量
   const balance = await getTokenBalance(publicClient, fomoToken, account)
-  let tokenAmount: bigint
+  const tokenAmount = resolveTokenAmount(amountStr, percentStr, balance)
 
-  if (amountStr) {
-    tokenAmount = parseBigInt(amountStr, "amount")
-    if (tokenAmount <= 0n) fatal("Amount must be positive")
-    if (balance < tokenAmount) fatal(`Insufficient FOMO balance: have ${balance}, need ${tokenAmount}`)
-  } else {
-    const percentBps = parseBigInt(percentStr!, "percent")
-    if (percentBps <= 0n || percentBps > 10000n) fatal("Percent must be 1-10000 (bps, 10000=100%)")
-    if (balance === 0n) fatal("No FOMO tokens to sell")
-    tokenAmount = (balance * percentBps) / 10000n
-    if (tokenAmount === 0n) fatal("Calculated sell amount is 0")
-  }
-
-  // 查代币状态
-  const tokenState = await publicClient.readContract({
-    address: portal,
-    abi: PORTAL_ABI,
-    functionName: "getTokenV6",
-    args: [fomoToken],
-  })
-
-  const statusCode = Number(tokenState.status) as TokenStatusCode
+  // 查代币市场状态
+  const { statusCode, tokenState } = await queryTokenStatus(publicClient, portal, fomoToken)
+  if (!tokenState) log("Token not found on FLAP Portal, using PancakeSwap...")
   const statusName = TOKEN_STATUS[statusCode] ?? "Unknown"
 
   if (statusCode === 1) {
@@ -94,16 +91,18 @@ export async function sell(args: string[]) {
     })
   } else if (statusCode === 4) {
     // 外盘 — approve PancakeSwap Router, swapExactTokensForETH
-    await ensureAllowance(publicClient, walletClient, fomoToken, PANCAKE_ROUTER, tokenAmount)
+    const pancakeRouter = PANCAKE_ROUTER_ADDRESSES[config.network]
+    const wbnb = WBNB_ADDRESSES[config.network]
+    await ensureAllowance(publicClient, walletClient, fomoToken, pancakeRouter, tokenAmount)
 
     log(`Selling ${tokenAmount} FOMO on 外盘 (PancakeSwap)...`)
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 300)
 
     const hash = await walletClient.writeContract({
-      address: PANCAKE_ROUTER,
+      address: pancakeRouter,
       abi: PANCAKE_ROUTER_ABI,
       functionName: "swapExactTokensForETHSupportingFeeOnTransferTokens",
-      args: [tokenAmount, 0n, [fomoToken, WBNB_ADDRESS], account, deadline],
+      args: [tokenAmount, 0n, [fomoToken, wbnb], account, deadline],
       chain: walletClient.chain,
     })
 

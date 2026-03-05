@@ -1,6 +1,6 @@
 {
   "name": "openclaw-fomo3d",
-  "version": "0.1.0",
+  "version": "1.2.0",
   "description": "OpenClaw Skill: Play Fomo3D and Slot Machine on BNB Chain (BSC)",
   "type": "module",
   "bin": {

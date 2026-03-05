@@ -1,4 +1,4 @@
-import type { Address } from "viem"
+import type { Address, PublicClient } from "viem"
 
 // FLAP Portal 地址（按网络）
 export const PORTAL_ADDRESSES = {
@@ -6,11 +6,17 @@ export const PORTAL_ADDRESSES = {
   mainnet: "0xe2cE6ab80874Fa9Fa2aAE65D277Dd6B8e65C9De0" as Address,
 } as const
 
-// WBNB (BSC mainnet / testnet 相同)
-export const WBNB_ADDRESS = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c" as Address
+// WBNB 地址（按网络）
+export const WBNB_ADDRESSES = {
+  testnet: "0xae13d989daC2f0dEbFf460aC112a837C89BAa7cd" as Address,
+  mainnet: "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c" as Address,
+} as const
 
 // PancakeSwap V2 Router（外盘交易，税收代币走 V2）
-export const PANCAKE_ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E" as Address
+export const PANCAKE_ROUTER_ADDRESSES = {
+  testnet: "0xD99D1c33F9fC3444f8101754aBC46c52416550D1" as Address,
+  mainnet: "0x10ED43C718714eb63d5aA57B78B54704E256024E" as Address,
+} as const
 
 // address(0) 代表原生 BNB
 export const NATIVE_BNB = "0x0000000000000000000000000000000000000000" as Address
@@ -112,3 +118,46 @@ export const TOKEN_STATUS = {
 } as const
 
 export type TokenStatusCode = keyof typeof TOKEN_STATUS
+
+// Portal 返回的代币状态结构
+export type TokenStateResult = {
+  status: number
+  reserve: bigint
+  circulatingSupply: bigint
+  price: bigint
+  tokenVersion: number
+  r: bigint
+  h: bigint
+  k: bigint
+  dexSupplyThresh: bigint
+  quoteTokenAddress: `0x${string}`
+  nativeToQuoteSwapEnabled: boolean
+  extensionID: `0x${string}`
+  taxRate: bigint
+  pool: `0x${string}`
+  progress: bigint
+}
+
+// 查询代币市场状态，Portal 查询失败（非 FLAP 代币）则 fallback 到 PancakeSwap
+export async function queryTokenStatus(
+  publicClient: PublicClient,
+  portal: Address,
+  token: Address,
+): Promise<{ statusCode: TokenStatusCode; tokenState: TokenStateResult | null }> {
+  try {
+    const tokenState = await publicClient.readContract({
+      address: portal,
+      abi: PORTAL_ABI,
+      functionName: "getTokenV6",
+      args: [token],
+    }) as TokenStateResult
+    return { statusCode: Number(tokenState.status) as TokenStatusCode, tokenState }
+  } catch (error) {
+    // 合约 revert = 代币不在 Portal 上，fallback 到 PancakeSwap
+    if (error instanceof Error && error.message.includes("revert")) {
+      return { statusCode: 4, tokenState: null }
+    }
+    // 网络错误、RPC 超时等不应 fallback，直接抛出
+    throw error
+  }
+}
