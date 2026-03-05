@@ -1,7 +1,7 @@
 ---
 name: fomo3d
 description: Play Fomo3D and Slot Machine on BNB Chain (BSC). Fomo3D is a blockchain game where players buy shares using tokens — the last buyer before the countdown ends wins the grand prize. Includes a Slot Machine mini-game with VRF-powered random spins. This skill provides a CLI to check game status, purchase shares, claim dividends, spin the slot machine, and more.
-version: 1.1.0
+version: 1.2.0
 metadata:
   openclaw:
     emoji: "🎰"
