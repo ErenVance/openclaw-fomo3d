@@ -55,10 +55,12 @@ export const ADDRESSES = {
   testnet: {
     fomo3dDiamond: "0x22E309c31Bed932afB505308434fB774cB2B23a6" as Address,
     slotDiamond: "0x007813509FA42B830db82C773f0Dd243fBEbF678" as Address,
+    fomoToken: "0x57e3a4fd1fe7f837535ea3b86026916f8c7d5d46" as Address,
   },
   mainnet: {
     fomo3dDiamond: "0x062AfaBEA853178E58a038b808EDEA119fF5948b" as Address,
     slotDiamond: "0x6eB59fFEc7CC639DFF4238D09B99Ea4c9150156E" as Address,
+    fomoToken: "0x13f26659398d7280737ffc9aba3d4f3cf53b7777" as Address,
   },
 } as const
 

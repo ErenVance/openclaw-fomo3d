@@ -67,6 +67,18 @@ async function main() {
       const { endRound } = await import("../src/commands/end-round.js")
       return endRound(rest)
     }
+    case "buy": {
+      const { buy } = await import("../src/commands/buy.js")
+      return buy(rest)
+    }
+    case "sell": {
+      const { sell } = await import("../src/commands/sell.js")
+      return sell(rest)
+    }
+    case "token-info": {
+      const { tokenInfo } = await import("../src/commands/token-info.js")
+      return tokenInfo(rest)
+    }
     case "slot": {
       const slotRest = args.slice(2)
       switch (subcommand) {
@@ -124,6 +136,12 @@ GAME ACTIONS:
   exit                          Exit game, claim dividends
   settle                        Settle after round ends + claim prize
   end-round                     End expired round
+
+TOKEN TRADING (mainnet only):
+  buy --amount <usdt_wei>       Buy FOMO with USDT via FLAP
+  sell --amount <token_wei>     Sell FOMO tokens for USDT
+  sell --percent <bps>          Sell by % (10000=100%, 5000=50%)
+  token-info                    Token status, price, balances
 
 SLOT MACHINE:
   slot status                   Slot machine status and stats

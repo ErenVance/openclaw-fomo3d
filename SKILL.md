@@ -1,7 +1,7 @@
 ---
 name: fomo3d
 description: Play Fomo3D and Slot Machine on BNB Chain (BSC). Fomo3D is a blockchain game where players buy shares using tokens — the last buyer before the countdown ends wins the grand prize. Includes a Slot Machine mini-game with VRF-powered random spins. This skill provides a CLI to check game status, purchase shares, claim dividends, spin the slot machine, and more.
-version: 1.0.0
+version: 1.1.0
 metadata:
   openclaw:
     emoji: "🎰"
@@ -64,7 +64,15 @@ Share amounts for `purchase --shares` are **integers** (not wei). 1 share = 1 sh
 
 ### Auto-Approve
 
-The CLI automatically checks ERC20 token allowance and approves if needed before `purchase`, `slot spin`, and `slot deposit`. No manual approval step required.
+The CLI automatically checks ERC20 token allowance and approves if needed before `purchase`, `buy`, `sell`, `slot spin`, and `slot deposit`. No manual approval step required.
+
+### FOMO Token Trading
+
+The FOMO token is launched on the FLAP platform (BNB Chain bonding curve). Trading uses the FlapSkill contract (`0x03a9aeeb4f6e64d425126164f7262c2a754b3ff9`) which auto-routes:
+- **内盘 (Portal)**: When the token is still on the bonding curve
+- **外盘 (PancakeSwap V2/V3)**: After the token graduates to DEX
+
+All trading uses **USDT** as the quote token. Buy/sell commands are only available on **mainnet**.
 
 ### VRF (Verifiable Random Function)
 
@@ -155,6 +163,59 @@ End a round whose countdown has reached zero. Anyone can call this. The grand pr
 
 **Output fields:** `txHash`, `blockNumber`, `status`
 
+### Buy — Buy FOMO with USDT (mainnet only)
+
+```bash
+fomo3d buy --amount <usdt_amount_in_wei> --json
+```
+Buy FOMO tokens using USDT via the FLAP platform. The FlapSkill contract auto-routes to Portal (内盘) or PancakeSwap (外盘) depending on token status. USDT allowance is auto-approved.
+
+**Example:** Buy with 10 USDT:
+```bash
+fomo3d buy --amount 10000000000000000000 --json
+```
+
+**Output fields:** `txHash`, `blockNumber`, `status`, `usdtSpent` (wei), `token`
+
+### Sell — Sell FOMO for USDT (mainnet only)
+
+```bash
+# 按数量卖出
+fomo3d sell --amount <token_amount_in_wei> --json
+
+# 按持仓比例卖出
+fomo3d sell --percent <bps> --json
+```
+Sell FOMO tokens for USDT. Two modes:
+- `--amount`: Sell exact token amount (in wei, 18 decimals)
+- `--percent`: Sell by percentage of holdings in basis points (10000=100%, 5000=50%, 1000=10%)
+
+Cannot use both flags simultaneously. Token allowance is auto-approved.
+
+**Example:** Sell 50% of holdings:
+```bash
+fomo3d sell --percent 5000 --json
+```
+
+**Output fields (--amount):** `txHash`, `blockNumber`, `status`, `tokensSold` (wei), `method`
+**Output fields (--percent):** `txHash`, `blockNumber`, `status`, `percentBps`, `method`
+
+### Token Info — Token Status & Balances
+
+```bash
+fomo3d token-info --json
+```
+Query FOMO token status on the FLAP platform and your balances.
+
+**Output fields (mainnet):** `token`, `network`, `status` (NotCreated/Tradable/DEX/Locked), `phase` (内盘/外盘), `quoteToken`, `currentPrice` (wei), `totalSupply` (wei), `reserveBalance` (wei), `progress` (wei), `fomoBalance` (wei), `usdtBalance` (wei), `account`
+
+**Output fields (testnet):** `token`, `network`, `status`, `phase`, `fomoBalance` (wei), `account`
+
+**Decision guide:**
+- `status == Tradable`: Token is on 内盘 (bonding curve), buy/sell via Portal
+- `status == DEX`: Token has graduated to 外盘 (PancakeSwap), buy/sell via DEX
+- `progress`: How close to graduation (higher = closer to DEX)
+
 ### Slot Status — Slot Machine Info
 
 ```bash
@@ -225,6 +286,18 @@ Claim accumulated dividends from slot machine deposits.
 2. `fomo3d wallet --json` — verify BNB and token balances
 3. `fomo3d status --json` — check game state
 
+### Buying FOMO Tokens (mainnet)
+
+1. `fomo3d token-info --json` — check token status and your USDT balance
+2. `fomo3d buy --amount 10000000000000000000 --json` — buy with 10 USDT
+3. `fomo3d token-info --json` — verify FOMO balance
+
+### Selling FOMO Tokens (mainnet)
+
+1. `fomo3d token-info --json` — check FOMO balance
+2. `fomo3d sell --percent 5000 --json` — sell 50% of holdings
+3. Or: `fomo3d sell --amount 1000000000000000000 --json` — sell exactly 1 FOMO
+
 ### Playing Fomo3D
 
 1. `fomo3d status --json` — check round status and countdown
@@ -256,7 +329,15 @@ Claim accumulated dividends from slot machine deposits.
 
 ## Network Info
 
-| Network | Chain ID | Fomo3D Diamond | Slot Diamond |
-|---------|----------|----------------|--------------|
-| BSC Testnet | 97 | `0x22E309c31Bed932afB505308434fB774cB2B23a6` | `0x007813509FA42B830db82C773f0Dd243fBEbF678` |
-| BSC Mainnet | 56 | `0x062AfaBEA853178E58a038b808EDEA119fF5948b` | `0x6eB59fFEc7CC639DFF4238D09B99Ea4c9150156E` |
+| Network | Chain ID | Fomo3D Diamond | Slot Diamond | FOMO Token |
+|---------|----------|----------------|--------------|------------|
+| BSC Testnet | 97 | `0x22E309c31Bed932afB505308434fB774cB2B23a6` | `0x007813509FA42B830db82C773f0Dd243fBEbF678` | `0x57e3a4fd1fe7f837535ea3b86026916f8c7d5d46` |
+| BSC Mainnet | 56 | `0x062AfaBEA853178E58a038b808EDEA119fF5948b` | `0x6eB59fFEc7CC639DFF4238D09B99Ea4c9150156E` | `0x13f26659398d7280737ffc9aba3d4f3cf53b7777` |
+
+## Trading Contracts (mainnet only)
+
+| Contract | Address | Purpose |
+|----------|---------|---------|
+| FlapSkill | `0x03a9aeeb4f6e64d425126164f7262c2a754b3ff9` | 买卖代币（自动路由内盘/外盘） |
+| USDT (BSC) | `0x55d398326f99059fF775485246999027B3197955` | 支付媒介 |
+| FLAP Portal | `0xe2cE6ab80874Fa9Fa2aAE65D277Dd6B8e65C9De0` | 查询代币状态 |
