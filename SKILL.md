@@ -1,7 +1,8 @@
 ---
 name: fomo3d
 description: Play Fomo3D, Slot Machine, and Prediction Market on BNB Chain (BSC). Fomo3D is a blockchain game where players buy shares using tokens — the last buyer before the countdown ends wins the grand prize. Includes a Slot Machine mini-game with VRF-powered random spins and a Prediction Market for betting on outcomes (sports, crypto prices, events). This skill provides a CLI to check game status, purchase shares, claim dividends, spin the slot machine, create/bet on prediction markets, and more. Use this skill whenever the user wants to interact with Fomo3D, buy/sell FOMO tokens, check game status, spin the slot machine, trade on FLAP Portal or PancakeSwap, create prediction markets, place bets, settle markets, or manage their BNB Chain gaming wallet.
-version: 1.3.0
+version: 1.3.1
+license: MIT
 metadata:
   openclaw:
     emoji: "🎰"
