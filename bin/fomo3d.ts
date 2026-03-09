@@ -119,6 +119,72 @@ async function main() {
       }
       break
     }
+    case "pred": {
+      const predRest = args.slice(2)
+      switch (subcommand) {
+        case "config": {
+          const { predConfig } = await import("../src/commands/pred-config.js")
+          return predConfig(predRest)
+        }
+        case "market": {
+          const { predMarket } = await import("../src/commands/pred-market.js")
+          return predMarket(predRest)
+        }
+        case "position": {
+          const { predPosition } = await import("../src/commands/pred-position.js")
+          return predPosition(predRest)
+        }
+        case "bet": {
+          const { predBet } = await import("../src/commands/pred-bet.js")
+          return predBet(predRest)
+        }
+        case "exit": {
+          const { predExit } = await import("../src/commands/pred-exit.js")
+          return predExit(predRest)
+        }
+        case "claim": {
+          const { predClaim } = await import("../src/commands/pred-claim.js")
+          return predClaim(predRest)
+        }
+        case "create": {
+          const { predCreate } = await import("../src/commands/pred-create.js")
+          return predCreate(predRest)
+        }
+        case "oracle": {
+          const { predOracle } = await import("../src/commands/pred-oracle.js")
+          return predOracle(predRest)
+        }
+        case "optimistic": {
+          const { predOptimistic } = await import("../src/commands/pred-optimistic.js")
+          return predOptimistic(predRest)
+        }
+        case "settle-oracle": {
+          const { predSettleOracle } = await import("../src/commands/pred-settle-oracle.js")
+          return predSettleOracle(predRest)
+        }
+        case "propose": {
+          const { predPropose } = await import("../src/commands/pred-propose.js")
+          return predPropose(predRest)
+        }
+        case "dispute": {
+          const { predDispute } = await import("../src/commands/pred-dispute.js")
+          return predDispute(predRest)
+        }
+        case "finalize": {
+          const { predFinalize } = await import("../src/commands/pred-finalize.js")
+          return predFinalize(predRest)
+        }
+        case "resolve": {
+          const { predResolve } = await import("../src/commands/pred-resolve.js")
+          return predResolve(predRest)
+        }
+        default:
+          console.error(`Unknown pred command: ${subcommand ?? "(none)"}`)
+          console.error("Available: config, market, position, bet, exit, claim, create, oracle, optimistic, settle-oracle, propose, dispute, finalize, resolve")
+          process.exit(1)
+      }
+      break
+    }
     default:
       console.error(`Unknown command: ${command}`)
       printHelp()
@@ -162,6 +228,27 @@ SLOT MACHINE:
   slot cancel                   Cancel timed-out spin
   slot deposit --amount <n>     Deposit tokens to prize pool
   slot claim                    Claim slot dividends
+
+PREDICTION MARKET:
+  pred config                   Global prediction config
+  pred market --id <n>          Market details
+  pred position --id <n>        Your position in a market
+  pred bet --id <n> --side <yes|no|draw> --amount <wei>
+                                Place a bet
+  pred exit --id <n> --side <yes|no|draw>
+                                Exit a side, claim dividends
+  pred claim --id <n>           Claim settlement after resolve
+  pred create --title <str> --end-time <ts> --bond <wei> --challenge-period <s> [--draw]
+                                Create optimistic market
+  pred oracle --id <n>          Oracle market price info
+  pred optimistic --id <n>      Optimistic settlement status
+  pred settle-oracle --id <n>   Settle oracle market
+  pred propose --id <n> --outcome <yes|no|draw>
+                                Propose outcome (bond required)
+  pred dispute --id <n>         Dispute proposal (bond required)
+  pred finalize --id <n>        Finalize after challenge period
+  pred resolve --id <n> --outcome <yes|no|draw> [--proposer-wins]
+                                Arbiter resolves dispute
 
 FLAGS:
   --json                        JSON output (for AI agents)

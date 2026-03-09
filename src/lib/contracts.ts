@@ -5,6 +5,12 @@ import LifecycleFacetABI from "../abi/LifecycleFacet.json" with { type: "json" }
 import SlotMachineFacetABI from "../abi/SlotMachineFacet.json" with { type: "json" }
 import SlotDepositFacetABI from "../abi/SlotDepositFacet.json" with { type: "json" }
 import SlotViewFacetABI from "../abi/SlotViewFacet.json" with { type: "json" }
+import PredViewFacetABI from "../abi/PredViewFacet.json" with { type: "json" }
+import PredPredictionFacetABI from "../abi/PredPredictionFacet.json" with { type: "json" }
+import PredSettleFacetABI from "../abi/PredSettleFacet.json" with { type: "json" }
+import PredOracleSettleFacetABI from "../abi/PredOracleSettleFacet.json" with { type: "json" }
+import PredOptimisticSettleFacetABI from "../abi/PredOptimisticSettleFacet.json" with { type: "json" }
+import PredAdminFacetABI from "../abi/PredAdminFacet.json" with { type: "json" }
 
 // Fomo3D 主游戏 Diamond ABI（合并所有 Facet）
 export const FOMO3D_ABI = [
@@ -19,6 +25,16 @@ export const SLOT_ABI = [
   ...SlotMachineFacetABI,
   ...SlotDepositFacetABI,
   ...SlotViewFacetABI,
+] as const
+
+// 预测市场 Diamond ABI
+export const PREDICTION_ABI = [
+  ...PredViewFacetABI,
+  ...PredPredictionFacetABI,
+  ...PredSettleFacetABI,
+  ...PredOracleSettleFacetABI,
+  ...PredOptimisticSettleFacetABI,
+  ...PredAdminFacetABI,
 ] as const
 
 // ERC20 最小 ABI

@@ -1,7 +1,7 @@
 ---
 name: fomo3d
-description: Play Fomo3D and Slot Machine on BNB Chain (BSC). Fomo3D is a blockchain game where players buy shares using tokens — the last buyer before the countdown ends wins the grand prize. Includes a Slot Machine mini-game with VRF-powered random spins. This skill provides a CLI to check game status, purchase shares, claim dividends, spin the slot machine, and more. Use this skill whenever the user wants to interact with Fomo3D, buy/sell FOMO tokens, check game status, spin the slot machine, trade on FLAP Portal or PancakeSwap, or manage their BNB Chain gaming wallet.
-version: 1.2.0
+description: Play Fomo3D, Slot Machine, and Prediction Market on BNB Chain (BSC). Fomo3D is a blockchain game where players buy shares using tokens — the last buyer before the countdown ends wins the grand prize. Includes a Slot Machine mini-game with VRF-powered random spins and a Prediction Market for betting on outcomes (sports, crypto prices, events). This skill provides a CLI to check game status, purchase shares, claim dividends, spin the slot machine, create/bet on prediction markets, and more. Use this skill whenever the user wants to interact with Fomo3D, buy/sell FOMO tokens, check game status, spin the slot machine, trade on FLAP Portal or PancakeSwap, create prediction markets, place bets, settle markets, or manage their BNB Chain gaming wallet.
+version: 1.3.0
 metadata:
   openclaw:
     emoji: "🎰"
@@ -16,11 +16,13 @@ metadata:
 
 # Fomo3D — BNB Chain Blockchain Game
 
-Fomo3D is a decentralized game on BNB Chain (BSC) with two game modes:
+Fomo3D is a decentralized game on BNB Chain (BSC) with three game modes:
 
 1. **Fomo3D Main Game** — Buy shares with tokens. Each purchase resets a countdown timer. The last buyer when the timer hits zero wins the grand prize pool. All shareholders earn dividends from each purchase.
 
 2. **Slot Machine** — Bet tokens for a VRF-powered random spin. Matching symbols win multiplied payouts (up to 100x). Depositors earn dividend shares from every spin.
+
+3. **Prediction Market** — Bet on the outcome of events (Yes/No/Draw). Markets use either Oracle (Chainlink price feeds) or Optimistic (human proposal + challenge) settlement. Bettors earn dividends from other bets on the same market, and winners share the prize pool.
 
 ## Installation and Config (required)
 
@@ -65,7 +67,7 @@ Share amounts for `purchase --shares` are **integers** (not wei). 1 share = 1 sh
 
 ### Auto-Approve
 
-The CLI automatically checks ERC20 token allowance and approves if needed before `purchase`, `buy`, `sell`, `slot spin`, and `slot deposit`. No manual approval step required.
+The CLI automatically checks ERC20 token allowance and approves if needed before `purchase`, `buy`, `sell`, `slot spin`, `slot deposit`, `pred bet`, `pred propose`, and `pred dispute`. No manual approval step required.
 
 ### FOMO Token Trading
 
@@ -288,6 +290,167 @@ Claim accumulated dividends from slot machine deposits.
 
 **Output fields:** `txHash`, `blockNumber`, `status`, `dividends` (wei)
 
+### Pred Config — Prediction Market Config
+
+```bash
+fomo3d pred config --json
+```
+Returns global prediction market configuration.
+
+**Output fields:** `network`, `diamond`, `token`, `minBet` (wei), `devFeeBps`, `creatorFeeBps`, `dividendBps`, `nextMarketId`, `totalMarkets`, `paused`, `minDuration` (seconds)
+
+### Pred Market — Market Details
+
+```bash
+fomo3d pred market --id <marketId> --json
+```
+Returns detailed info for a specific prediction market.
+
+**Output fields:** `marketId`, `title`, `creator`, `status` (Active/Closed/Resolved), `outcome` (Yes/No/Draw, only when Resolved), `settlementType` (Oracle/Optimistic), `drawEnabled`, `endTime`, `timeRemaining` (seconds), `prizePool` (wei), `totalYesShares` (wei), `totalNoShares` (wei), `totalDrawShares` (wei), `totalShares` (wei), `totalBets`, `totalBetAmount` (wei), `totalDividendsDistributed` (wei), `metadataURI`
+
+**Decision guide:**
+- `status == Active`: Market is open for betting
+- `status == Closed`: Market ended, waiting for settlement
+- `status == Resolved`: Settlement complete, winners can `pred claim`
+- `timeRemaining == 0`: Market has ended, needs settlement
+
+### Pred Position — Player Position
+
+```bash
+fomo3d pred position --id <marketId> --json
+fomo3d pred position --id <marketId> --address 0x1234... --json
+```
+Returns player's position in a specific market. Without `--address`, uses the configured wallet.
+
+**Output fields:** `marketId`, `player`, `yesShares` (wei), `noShares` (wei), `drawShares` (wei), `pendingYesDividends` (wei), `pendingNoDividends` (wei), `pendingDrawDividends` (wei), `estimatedPrizeIfYes` (wei), `estimatedPrizeIfNo` (wei), `estimatedPrizeIfDraw` (wei), `exited`, `settled`
+
+**Decision guide:**
+- `pendingXxxDividends > 0`: Accumulated dividends, claim via `pred exit` or `pred claim`
+- `estimatedPrizeIfXxx`: How much you'd win if that side wins (before fees)
+- `exited == true`: Already exited all sides
+- `settled == true`: Already claimed settlement
+
+### Pred Bet — Place a Bet
+
+```bash
+fomo3d pred bet --id <marketId> --side <yes|no|draw> --amount <wei> --json
+```
+Place a bet on a prediction market. The `--side` value is `yes`, `no`, or `draw`. Amount is in wei. A portion (`dividendBps%`) of each bet goes to existing holders as dividends; the rest goes to the prize pool.
+
+**Pre-checks performed automatically:**
+- Market must be Active (not paused)
+- Amount must be >= minBet
+- Token approval (auto-approved if needed)
+
+**Output fields:** `txHash`, `blockNumber`, `status`, `marketId`, `side`, `amount` (wei)
+
+### Pred Exit — Exit a Side
+
+```bash
+fomo3d pred exit --id <marketId> --side <yes|no|draw> --json
+```
+Exit one direction and claim accumulated dividends for that side. Can be called even when the contract is paused (user safety). Dev fee + creator fee are deducted from dividends.
+
+**Output fields:** `txHash`, `blockNumber`, `status`, `marketId`, `side`
+
+### Pred Claim — Claim Settlement
+
+```bash
+fomo3d pred claim --id <marketId> --json
+```
+After a market is Resolved, claim your winnings. Winners receive: accumulated dividends + prize pool share. Losers receive: accumulated dividends only. Dev fee + creator fee are deducted.
+
+**Output fields:** `txHash`, `blockNumber`, `status`, `marketId`
+
+### Pred Create — Create Optimistic Market
+
+```bash
+fomo3d pred create --title <string> --end-time <unix_timestamp> --bond <amount_in_wei> --challenge-period <seconds> [--draw] --json
+```
+Create a new prediction market using optimistic oracle settlement. Anyone can create a market.
+
+**Parameters:**
+- `--title`: Market question (max 200 bytes)
+- `--end-time`: Unix timestamp when betting closes
+- `--bond`: Bond amount required for proposing/disputing outcome (in wei, min 0.01 FOMO)
+- `--challenge-period`: Time window for disputes in seconds (min 600s = 10min, max 604800s = 7 days)
+- `--draw`: Include this flag to enable Draw as a third option
+
+**Output fields:** `txHash`, `blockNumber`, `status`, `marketId`, `title`, `endTime`, `bondAmount` (wei), `challengePeriod` (seconds), `drawEnabled`
+
+### Pred Oracle — Oracle Market Info
+
+```bash
+fomo3d pred oracle --id <marketId> --json
+```
+View Chainlink oracle configuration for an Oracle-type market. Shows price feed, strike price, condition, and current price.
+
+**Output fields:** `marketId`, `feedAddress`, `feedDescription`, `feedDecimals`, `strikePrice`, `strikePriceFormatted`, `isAbove`, `condition`, `currentPrice`, `currentPriceFormatted`, `settlementPrice`, `settlementPriceFormatted`
+
+### Pred Optimistic — Optimistic Settlement Status
+
+```bash
+fomo3d pred optimistic --id <marketId> --json
+```
+View optimistic oracle status for an Optimistic-type market. Shows proposal state, challenge deadline, and available actions.
+
+**Output fields:** `marketId`, `bondAmount` (wei), `challengePeriod` (seconds), `hasProposal`, `proposer`, `proposedOutcome`, `proposalTime`, `disputed`, `disputer`, `challengeDeadline`, `challengeRemaining` (seconds), `canFinalize`, `canDispute`
+
+**Decision guide:**
+- `hasProposal == false`: Market needs someone to `pred propose` an outcome
+- `canDispute == true`: Proposal is open for challenge via `pred dispute`
+- `canFinalize == true`: Challenge period passed, call `pred finalize`
+- `disputed == true`: Needs arbiter to `pred resolve`
+
+### Pred Settle Oracle — Settle with Oracle
+
+```bash
+fomo3d pred settle-oracle --id <marketId> --json
+```
+Settle an Oracle-type market using Chainlink price feed. Permissionless — anyone can call this after market ends.
+
+**Output fields:** `txHash`, `blockNumber`, `status`, `marketId`
+
+### Pred Propose — Propose Outcome
+
+```bash
+fomo3d pred propose --id <marketId> --outcome <yes|no|draw> --json
+```
+Propose the outcome for an Optimistic-type market. Requires bond (auto-approved from token balance). Bond is returned if proposal is not disputed and is finalized.
+
+**Output fields:** `txHash`, `blockNumber`, `status`, `marketId`, `outcome`, `bondAmount` (wei)
+
+### Pred Dispute — Dispute Proposal
+
+```bash
+fomo3d pred dispute --id <marketId> --json
+```
+Challenge a proposed outcome within the challenge period. Requires same bond amount (auto-approved). If you win the dispute, you get your bond back + 50% of proposer's bond.
+
+**Output fields:** `txHash`, `blockNumber`, `status`, `marketId`, `bondAmount` (wei)
+
+### Pred Finalize — Finalize Outcome
+
+```bash
+fomo3d pred finalize --id <marketId> --json
+```
+Finalize a proposed outcome after the challenge period expires without dispute. Returns the proposer's bond and resolves the market.
+
+**Output fields:** `txHash`, `blockNumber`, `status`, `marketId`
+
+### Pred Resolve — Arbiter Resolve Dispute
+
+```bash
+fomo3d pred resolve --id <marketId> --outcome <yes|no|draw> [--proposer-wins] --json
+```
+Resolve a disputed market. Only the contract owner or designated arbiters can call this. The winner gets their bond back + 50% of loser's bond. The other 50% goes to devAddress.
+
+**Parameters:**
+- `--outcome`: The correct outcome
+- `--proposer-wins`: Include this flag if the proposer was correct (default: disputer wins)
+
+**Output fields:** `txHash`, `blockNumber`, `status`, `marketId`, `outcome`, `winnerIsProposer`
+
 ## Recommended Workflows
 
 ### First-Time Setup
@@ -396,6 +559,52 @@ unset FOMO3D_FLAP_TOKEN
 1. `fomo3d slot deposit --amount <amount> --json` — deposit tokens (permanent)
 2. Periodically check: `fomo3d slot claim --json` — claim dividends
 
+### Playing Prediction Market
+
+1. `fomo3d pred config --json` — check prediction market config and minBet
+2. `fomo3d pred market --id 1 --json` — view a specific market
+3. `fomo3d pred bet --id 1 --side yes --amount 1000000000000000000000 --json` — bet 1000 FOMO on Yes
+4. `fomo3d pred position --id 1 --json` — check your position and dividends
+5. After market resolves: `fomo3d pred claim --id 1 --json` — claim winnings
+6. Or exit early: `fomo3d pred exit --id 1 --side yes --json` — exit and claim dividends
+
+### Creating a Prediction Market
+
+```bash
+# Calculate end time: now + 24 hours
+END_TIME=$(($(date +%s) + 86400))
+
+# Create market with 10 FOMO bond, 1 hour challenge period
+fomo3d pred create \
+  --title "Will BTC reach $100k by end of March?" \
+  --end-time $END_TIME \
+  --bond 10000000000000000000 \
+  --challenge-period 3600 \
+  --json
+```
+
+### Settling an Optimistic Market
+
+```bash
+# 1. Check market status — should be "Closed" (endTime passed)
+fomo3d pred market --id 1 --json
+
+# 2. Propose the outcome
+fomo3d pred propose --id 1 --outcome yes --json
+
+# 3. Check optimistic status — see challenge deadline
+fomo3d pred optimistic --id 1 --json
+
+# 4a. If no dispute — finalize after challenge period
+fomo3d pred finalize --id 1 --json
+
+# 4b. If disputed — arbiter resolves
+fomo3d pred resolve --id 1 --outcome yes --proposer-wins --json
+
+# 5. Winners claim
+fomo3d pred claim --id 1 --json
+```
+
 ## Global Flags
 
 | Flag | Description |
@@ -407,10 +616,12 @@ unset FOMO3D_FLAP_TOKEN
 
 ## Network Info
 
-| Network | Chain ID | Fomo3D Diamond | Slot Diamond | Game Token | FLAP Token (buy/sell) |
-|---------|----------|----------------|--------------|------------|----------------------|
-| BSC Testnet | 97 | `0x22E309...23a6` | `0x007813...F678` | `0x57e3a4...5d46` | `0x32bfe5...8888` |
-| BSC Mainnet | 56 | `0x062AfaB...948b` | `0x6eB59f...156E` | `0x13f266...7777` | `0x13f266...7777` |
+| Network | Chain ID | Fomo3D Diamond | Slot Diamond | Prediction Diamond | Game Token | FLAP Token (buy/sell) |
+|---------|----------|----------------|--------------|-------------------|------------|----------------------|
+| BSC Testnet | 97 | `0x22E309...23a6` | `0x007813...F678` | `0x7617A5...ca01` | `0x57e3a4...5d46` | `0x32bfe5...8888` |
+| BSC Mainnet | 56 | `0x062AfaB...948b` | `0x6eB59f...156E` | `0xc64083...8d45` | `0x13f266...7777` | `0x13f266...7777` |
+
+**Note:** Prediction Market uses the same game token as Fomo3D and Slot Machine.
 
 ## Trading Contracts
 
